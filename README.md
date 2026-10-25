@@ -134,6 +134,29 @@ pytest tests/          # gating policy tests (no Hermes needed)
 The adapter imports `gateway.*` from the host Hermes, so it only runs inside a
 Hermes environment; the gating tests run anywhere.
 
+## CalDAV Organizer (calendar + tasks)
+
+This repo also ships `caldav_organizer/` — a **tools** plugin that gives the
+agent a `calendar` toolset over CalDAV (Radicale, Nextcloud, …): `calendar_add_event`,
+`calendar_list`, `calendar_delete_event`, `task_add`, `task_list`, `task_complete`.
+
+Per-profile: each Hermes profile points at its own CalDAV account
+(`CALDAV_USERNAME`/`CALDAV_PASSWORD`), with a shared collection
+(`CALDAV_SHARED_USER`, default `shared`) as the common family/team space.
+Reminders use the built-in `cronjob` toolset — enable it alongside `calendar`.
+
+```bash
+hermes plugins install VanyaSimonov/hermes-userbot-assistant/caldav_organizer --yes-deps --enable
+# then per profile, in that profile's .env:
+#   CALDAV_URL=http://127.0.0.1:5232
+#   CALDAV_USERNAME=ivan
+#   CALDAV_PASSWORD=...
+# and enable the toolset for your platform (platform_toolsets): calendar, cronjob
+```
+
+Tasks are standard CalDAV VTODO, so they show up in the **iOS Reminders** app
+(and calendars in the Calendar app) once the CalDAV account is added on the phone.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
