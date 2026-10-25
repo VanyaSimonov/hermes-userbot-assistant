@@ -25,6 +25,11 @@ author: VanyaSimonov
 maintainer: VanyaSimonov
 tier: community
 requires_hermes: ">=0.21.0"
+# Installed into the managed Hermes env by PM (hermes plugins install / pm repair)
+# — survives env sync, unlike a manual pip install. Upper bound is required by
+# the dependency policy.
+python_dependencies:
+  - "telethon>=1.36,<2"
 requires_env:
   - name: TELEGRAM_API_ID
     description: "Telegram API ID from https://my.telegram.org/apps"

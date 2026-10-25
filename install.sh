@@ -3,15 +3,20 @@
 # Installer for the Hermes Telegram Userbot platform plugin.
 #
 # What it does:
-#   1. Locates HERMES_HOME (default ~/.hermes).
-#   2. Installs `telethon` into the SAME Python environment Hermes runs in.
-#   3. Links (or copies) the `telegram_userbot` package into
+#   1. Locates HERMES_HOME (default ~/.hermes) and the `hermes` CLI.
+#   2. Links (or copies) the `telegram_userbot` package into
 #      HERMES_HOME/plugins/ so Hermes discovers it as a directory plugin.
-#   4. Prints the remaining manual steps (API creds, one-time login, enable).
+#   3. Enables the plugin and runs `hermes pm repair`, which installs the
+#      declared python_dependencies (telethon) INTO THE MANAGED HERMES ENV.
+#      This is the supported path: a manual `pip install` into the interpreter
+#      does NOT survive Hermes' env sync, which prunes anything not tracked by
+#      PM. `pm repair` installs telethon in a way that persists.
+#   4. Prints the remaining manual steps (API creds, one-time login, start).
 #
 # Usage:
 #   ./install.sh            # symlink the plugin (recommended; `git pull` updates it)
 #   ./install.sh --copy     # copy instead of symlink (for read-only checkouts)
+#   ./install.sh --no-enable  # install files only; don't enable or repair
 #   HERMES_HOME=/path ./install.sh
 #
 # Re-running is safe (idempotent).
@@ -19,12 +24,14 @@
 set -euo pipefail
 
 MODE="link"
+DO_ENABLE=1
 for arg in "$@"; do
   case "$arg" in
     --copy) MODE="copy" ;;
     --link) MODE="link" ;;
+    --no-enable) DO_ENABLE=0 ;;
     -h|--help)
-      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
@@ -35,11 +42,15 @@ PKG_SRC="$SCRIPT_DIR/telegram_userbot"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 PLUGINS_DIR="$HERMES_HOME/plugins"
 DEST="$PLUGINS_DIR/telegram_userbot"
+PLUGIN_NAME="telegram-userbot-platform"
+
+HERMES_BIN="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
 
 echo "==> Hermes Telegram Userbot installer"
 echo "    HERMES_HOME : $HERMES_HOME"
 echo "    plugin src  : $PKG_SRC"
 echo "    install to  : $DEST  (mode: $MODE)"
+echo "    hermes CLI  : $HERMES_BIN"
 echo
 
 if [ ! -f "$PKG_SRC/plugin.yaml" ]; then
@@ -51,58 +62,12 @@ if [ ! -d "$HERMES_HOME" ]; then
   echo "       or pass HERMES_HOME=/path/to/.hermes ./install.sh" >&2
   exit 1
 fi
-
-# --- 1. Find the Python that Hermes uses, to install telethon into it --------
-# Hermes runs on a bundled standalone interpreter under HERMES_HOME/tools (it has
-# no classic .venv), launched in isolated mode. telethon must land in THAT
-# interpreter's site-packages or the gateway won't see it. Resolution order:
-#   a) `hermes pm env` PATH (authoritative — the python dir it puts first),
-#   b) the bundled tools glob,
-#   c) a legacy .venv (older layouts),
-#   d) system python3 (last resort).
-HERMES_PY=""
-HERMES_BIN="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
-
-if [ -x "$HERMES_BIN" ]; then
-  _pm_path="$("$HERMES_BIN" pm env 2>/dev/null \
-    | sed -n 's/.*"PATH"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  _pydir="$(printf '%s' "$_pm_path" | tr ':' '\n' | grep -m1 '/tools/python-')"
-  if [ -n "$_pydir" ] && [ -x "$_pydir/python3" ]; then
-    HERMES_PY="$_pydir/python3"
-  fi
-fi
-if [ -z "$HERMES_PY" ]; then
-  for cand in \
-    "$HERMES_HOME"/tools/python-*/bin/python3 \
-    "$HERMES_HOME"/hermes-agent/.venv/bin/python \
-    "$HERMES_HOME"/hermes-agent/.venv/bin/python3; do
-    if [ -x "$cand" ]; then HERMES_PY="$cand"; break; fi
-  done
-fi
-if [ -z "$HERMES_PY" ]; then
-  HERMES_PY="$(command -v python3 || command -v python || true)"
-  echo "WARNING: could not locate the bundled Hermes python; falling back to" >&2
-  echo "         $HERMES_PY — if the gateway can't import telethon, install it" >&2
-  echo "         into the interpreter from \`hermes pm env\` PATH manually." >&2
-fi
-if [ -z "$HERMES_PY" ]; then
-  echo "ERROR: no python interpreter found to install telethon into." >&2
+if [ ! -x "$HERMES_BIN" ]; then
+  echo "ERROR: 'hermes' CLI not found. Install Hermes, or ensure 'hermes' is on PATH." >&2
   exit 1
 fi
-# ensurepip in case the bundled interpreter ships without pip wired up.
-if ! "$HERMES_PY" -m pip --version >/dev/null 2>&1; then
-  "$HERMES_PY" -m ensurepip --upgrade >/dev/null 2>&1 || true
-fi
-echo "==> Installing telethon into: $HERMES_PY"
-if ! "$HERMES_PY" -c "import telethon" >/dev/null 2>&1; then
-  "$HERMES_PY" -m pip install --quiet --disable-pip-version-check telethon \
-    || { echo "ERROR: 'pip install telethon' failed for $HERMES_PY" >&2; exit 1; }
-  echo "    telethon installed."
-else
-  echo "    telethon already present."
-fi
 
-# --- 2. Place the plugin -----------------------------------------------------
+# --- 1. Place the plugin -----------------------------------------------------
 mkdir -p "$PLUGINS_DIR"
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
   echo "==> Removing existing $DEST"
@@ -116,11 +81,28 @@ else
   echo "==> Symlinked plugin: $DEST -> $PKG_SRC"
 fi
 
+if [ "$DO_ENABLE" -eq 0 ]; then
+  echo "==> --no-enable: files in place; enable it yourself with:"
+  echo "      hermes plugins enable $PLUGIN_NAME && hermes pm repair"
+  exit 0
+fi
+
+# --- 2. Enable + install declared deps via PM (the sync-proof path) ----------
+echo "==> Enabling plugin: $PLUGIN_NAME"
+"$HERMES_BIN" plugins enable "$PLUGIN_NAME" || {
+  echo "WARNING: enable failed — check 'hermes plugins list'." >&2; }
+
+echo "==> Installing declared python_dependencies (telethon) via 'hermes pm repair'..."
+echo "    (this installs into the managed Hermes env so env sync won't prune it)"
+"$HERMES_BIN" pm repair || {
+  echo "WARNING: 'hermes pm repair' did not complete cleanly. Re-run it, then" >&2
+  echo "         verify with: hermes plugins doctor" >&2; }
+
 echo
-echo "==> Plugin files in place. Verify discovery with:"
-echo "      hermes plugins list --plain | grep telegram-userbot"
-echo "    (shows 'not enabled' until you enable it — plugins are opt-in)."
+echo "==> Verify discovery + deps:"
+echo "      hermes plugins list --plain | grep telegram-userbot   # expect: enabled"
 echo
+
 cat <<'NEXT'
 ================================  NEXT STEPS  ================================
 1) Create a Telegram API app (once) at  https://my.telegram.org/apps
@@ -138,12 +120,13 @@ cat <<'NEXT'
      cd "$(dirname "$0")"
      TELEGRAM_API_ID=... TELEGRAM_API_HASH=... \
        python -m telegram_userbot.login            # or add --string
+   (produces HERMES_HOME/telegram-userbot-auth/userbot.session, chmod 0600)
 
-3) Enable the plugin (plugins are opt-in) and (re)start the gateway:
+3) Start the gateway and confirm it connected:
 
-     hermes plugins enable telegram-userbot-platform
      hermes gateway status
-     hermes gateway start        # or: hermes gateway restart
+     hermes gateway run          # foreground, or:
+     hermes gateway install && hermes gateway start   # as a background service
 
 4) Add the userbot account to a group, then @mention it. It replies only when
    mentioned/replied to, and only in allowed chats.

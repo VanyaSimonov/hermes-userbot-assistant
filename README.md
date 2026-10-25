@@ -37,13 +37,17 @@ cd hermes-userbot-assistant
 ```
 
 The installer:
-1. finds your `HERMES_HOME` (default `~/.hermes`),
-2. installs `telethon` into the Python environment Hermes runs in,
-3. links `telegram_userbot/` into `HERMES_HOME/plugins/`,
+1. finds your `HERMES_HOME` (default `~/.hermes`) and the `hermes` CLI,
+2. links `telegram_userbot/` into `HERMES_HOME/plugins/`,
+3. enables the plugin and runs `hermes pm repair`, which installs the declared
+   `telethon` dependency **into the managed Hermes env** — the supported path.
+   A plain `pip install telethon` into the interpreter does *not* survive
+   Hermes' env sync (it prunes anything PM doesn't track); `pm repair` persists.
 4. prints the remaining steps.
 
-Use `./install.sh --copy` instead of a symlink for a read-only checkout.
-Override the location with `HERMES_HOME=/path ./install.sh`.
+Use `./install.sh --copy` instead of a symlink for a read-only checkout,
+`./install.sh --no-enable` to place files only, and `HERMES_HOME=/path
+./install.sh` to override the location.
 
 Verify discovery:
 
