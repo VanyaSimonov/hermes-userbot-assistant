@@ -30,24 +30,31 @@ would.
 
 ## Install
 
+One command — the plugin lives in the `telegram_userbot/` subdirectory, so
+install it with the `owner/repo/subdir` shorthand:
+
 ```bash
-git clone https://github.com/VanyaSimonov/hermes-userbot-assistant.git
-cd hermes-userbot-assistant
-./install.sh            # symlinks the plugin into ~/.hermes/plugins and installs telethon
+hermes plugins install VanyaSimonov/hermes-userbot-assistant/telegram_userbot --yes-deps --enable
 ```
 
-The installer:
-1. finds your `HERMES_HOME` (default `~/.hermes`) and the `hermes` CLI,
-2. links `telegram_userbot/` into `HERMES_HOME/plugins/`,
-3. enables the plugin and runs `hermes pm repair`, which installs the declared
-   `telethon` dependency **into the managed Hermes env** — the supported path.
-   A plain `pip install telethon` into the interpreter does *not* survive
-   Hermes' env sync (it prunes anything PM doesn't track); `pm repair` persists.
-4. prints the remaining steps.
+This clones the repo, installs the declared `telethon` dependency **into the
+managed Hermes env** (the only way that survives Hermes' env sync — a plain
+`pip install` gets pruned), records provenance, and enables the plugin.
 
-Use `./install.sh --copy` instead of a symlink for a read-only checkout,
-`./install.sh --no-enable` to place files only, and `HERMES_HOME=/path
-./install.sh` to override the location.
+There is also a wrapper script if you prefer running one from a clone (it just
+calls the command above, and auto-detects the repo from your git origin so
+forks work):
+
+```bash
+git clone https://github.com/VanyaSimonov/hermes-userbot-assistant.git
+cd hermes-userbot-assistant && ./install.sh        # --no-enable / --ref <sha> supported
+```
+
+Verify:
+
+```bash
+hermes plugins list --plain | grep telegram-userbot   # expect: enabled
+```
 
 Verify discovery:
 
