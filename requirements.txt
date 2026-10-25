@@ -1,0 +1,4 @@
+# Runtime dependency for the Telegram userbot plugin.
+# Hermes itself is NOT listed here — the plugin imports the host's gateway.*
+# modules at load time and runs inside the Hermes environment.
+telethon>=1.36,<2

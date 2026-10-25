@@ -1,0 +1,76 @@
+name: telegram-userbot-platform
+label: Telegram Userbot
+kind: platform
+version: 0.1.0
+description: >
+  Telegram USERBOT gateway adapter for Hermes Agent.
+
+  Unlike the bundled ``telegram`` platform (which uses the Bot API and a
+  BotFather token), this adapter logs in as a real Telegram USER account over
+  MTProto via Telethon. That lets the assistant be added to ordinary group
+  chats — including chats with external partners — as a normal participant,
+  and see the conversation the way a human member does.
+
+  Because a userbot reads everything in a group, this adapter is
+  mention-gated by default (it only acts when @-mentioned or replied to) and
+  supports an explicit chat allowlist so it is silent in every chat you have
+  not opted in. Your own outgoing messages are filtered to avoid echo loops.
+
+  SECURITY / ToS: a userbot runs on a live account. Running automation on a
+  personal account is against the spirit of Telegram's Terms of Service and
+  risks account limits or a ban. Use a DEDICATED account/number, keep the
+  mention gate on, and treat the ``.session`` file as full credentials —
+  anyone holding it controls the account.
+author: VanyaSimonov
+maintainer: VanyaSimonov
+tier: community
+requires_hermes: ">=0.21.0"
+requires_env:
+  - name: TELEGRAM_API_ID
+    description: "Telegram API ID from https://my.telegram.org/apps"
+    prompt: "Telegram API ID"
+    url: "https://my.telegram.org/apps"
+    password: false
+  - name: TELEGRAM_API_HASH
+    description: "Telegram API hash from https://my.telegram.org/apps"
+    prompt: "Telegram API hash"
+    url: "https://my.telegram.org/apps"
+    password: true
+optional_env:
+  - name: TELEGRAM_USERBOT_SESSION_STRING
+    description: >
+      Telethon StringSession for the logged-in account. Preferred over a
+      file session for secret management. Generate it once with
+      `python -m telegram_userbot.login --string`.
+    prompt: "Telethon StringSession (or empty to use a file session)"
+    password: true
+  - name: TELEGRAM_USERBOT_ALLOWED_CHATS
+    description: >
+      Comma-separated chat IDs or @usernames the userbot may act in. Empty =
+      every chat it is a member of (still mention-gated). Strongly recommended
+      for partner groups so the bot is silent everywhere else.
+    prompt: "Allowed chats (comma-separated ids/@usernames)"
+    password: false
+  - name: TELEGRAM_USERBOT_ALLOWED_USERS
+    description: "Comma-separated Telegram user IDs allowed to trigger the bot in DMs."
+    prompt: "Allowed DM users (comma-separated ids)"
+    password: false
+  - name: TELEGRAM_USERBOT_ALLOW_ALL_USERS
+    description: "Allow any user to DM the bot (dev only — disables the DM allowlist)."
+    prompt: "Allow all DM users? (true/false)"
+    password: false
+  - name: TELEGRAM_USERBOT_REQUIRE_MENTION
+    description: >
+      In groups, only act when @-mentioned or replied to (true/false, default
+      true). Turning this off makes the bot answer every allowed-chat message —
+      noisy and higher ToS risk.
+    prompt: "Require @mention in groups? (true/false)"
+    password: false
+  - name: TELEGRAM_USERBOT_HOME_CHANNEL
+    description: "Default chat id/@username for cron / notification delivery."
+    prompt: "Home channel (chat id or @username)"
+    password: false
+  - name: TELEGRAM_USERBOT_HOME_CHANNEL_NAME
+    description: "Display name for the home channel."
+    prompt: "Home channel display name"
+    password: false
