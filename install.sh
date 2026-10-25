@@ -53,20 +53,45 @@ if [ ! -d "$HERMES_HOME" ]; then
 fi
 
 # --- 1. Find the Python that Hermes uses, to install telethon into it --------
-# Prefer the interpreter inside the Hermes checkout's venv if present; fall back
-# to `hermes pm env`-reported python, then to the current `python3`.
+# Hermes runs on a bundled standalone interpreter under HERMES_HOME/tools (it has
+# no classic .venv), launched in isolated mode. telethon must land in THAT
+# interpreter's site-packages or the gateway won't see it. Resolution order:
+#   a) `hermes pm env` PATH (authoritative — the python dir it puts first),
+#   b) the bundled tools glob,
+#   c) a legacy .venv (older layouts),
+#   d) system python3 (last resort).
 HERMES_PY=""
-for cand in \
-  "$HERMES_HOME/hermes-agent/.venv/bin/python" \
-  "$HERMES_HOME/hermes-agent/.venv/bin/python3"; do
-  if [ -x "$cand" ]; then HERMES_PY="$cand"; break; fi
-done
+HERMES_BIN="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
+
+if [ -x "$HERMES_BIN" ]; then
+  _pm_path="$("$HERMES_BIN" pm env 2>/dev/null \
+    | sed -n 's/.*"PATH"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  _pydir="$(printf '%s' "$_pm_path" | tr ':' '\n' | grep -m1 '/tools/python-')"
+  if [ -n "$_pydir" ] && [ -x "$_pydir/python3" ]; then
+    HERMES_PY="$_pydir/python3"
+  fi
+fi
+if [ -z "$HERMES_PY" ]; then
+  for cand in \
+    "$HERMES_HOME"/tools/python-*/bin/python3 \
+    "$HERMES_HOME"/hermes-agent/.venv/bin/python \
+    "$HERMES_HOME"/hermes-agent/.venv/bin/python3; do
+    if [ -x "$cand" ]; then HERMES_PY="$cand"; break; fi
+  done
+fi
 if [ -z "$HERMES_PY" ]; then
   HERMES_PY="$(command -v python3 || command -v python || true)"
+  echo "WARNING: could not locate the bundled Hermes python; falling back to" >&2
+  echo "         $HERMES_PY — if the gateway can't import telethon, install it" >&2
+  echo "         into the interpreter from \`hermes pm env\` PATH manually." >&2
 fi
 if [ -z "$HERMES_PY" ]; then
   echo "ERROR: no python interpreter found to install telethon into." >&2
   exit 1
+fi
+# ensurepip in case the bundled interpreter ships without pip wired up.
+if ! "$HERMES_PY" -m pip --version >/dev/null 2>&1; then
+  "$HERMES_PY" -m ensurepip --upgrade >/dev/null 2>&1 || true
 fi
 echo "==> Installing telethon into: $HERMES_PY"
 if ! "$HERMES_PY" -c "import telethon" >/dev/null 2>&1; then
@@ -93,7 +118,8 @@ fi
 
 echo
 echo "==> Plugin files in place. Verify discovery with:"
-echo "      hermes plugins list      # expect: telegram-userbot-platform"
+echo "      hermes plugins list --plain | grep telegram-userbot"
+echo "    (shows 'not enabled' until you enable it — plugins are opt-in)."
 echo
 cat <<'NEXT'
 ================================  NEXT STEPS  ================================
@@ -113,8 +139,9 @@ cat <<'NEXT'
      TELEGRAM_API_ID=... TELEGRAM_API_HASH=... \
        python -m telegram_userbot.login            # or add --string
 
-3) (Re)start the gateway and confirm it connected:
+3) Enable the plugin (plugins are opt-in) and (re)start the gateway:
 
+     hermes plugins enable telegram-userbot-platform
      hermes gateway status
      hermes gateway start        # or: hermes gateway restart
 

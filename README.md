@@ -88,7 +88,10 @@ TELEGRAM_API_ID=... TELEGRAM_API_HASH=... python -m telegram_userbot.login
 
 ## Run
 
+Plugins are opt-in, so enable it once, then start the gateway:
+
 ```bash
+hermes plugins enable telegram-userbot-platform
 hermes gateway status
 hermes gateway start        # or: hermes gateway restart
 ```
